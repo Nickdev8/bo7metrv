@@ -44,7 +44,7 @@ try:
             f"RGB: {r:3d}, {g:3d}, {b:3d}  "
             f"HEX: {hex_color}  "
             f"Lux: {lux:8.2f}  "
-            f"Temp: {color_temperature:5d}K",
+            f"Temp: {color_temperature:5.0f}K",
             end="\r",
             flush=True
         )
