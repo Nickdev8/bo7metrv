@@ -5,7 +5,7 @@ from pathlib import Path
 
 IMAGE_FILES = {
     pygame.K_1: "image-1.jpg",
-    pygame.K_2: "image-2.jpg",
+    pygame.K_2: "furkan-test.jpg",
     pygame.K_3: "image-3.jpg",
     pygame.K_4: "image-4.jpg",
 }
