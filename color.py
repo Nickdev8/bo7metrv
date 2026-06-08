@@ -1,128 +1,55 @@
-import smbus
 import time
-import sys
+import adafruit_tcs34725
+from adafruit_extended_bus import ExtendedI2C
 
 
-I2C_BUS = 3
-TCS34725_ADDRESS = 0x29
+# Software I2C bus 3 from:
+# dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
+i2c = ExtendedI2C(3)
 
-COMMAND_BIT = 0x80
+sensor = adafruit_tcs34725.TCS34725(i2c)
 
-REG_ENABLE = 0x00
-REG_ATIME = 0x01
-REG_CONTROL = 0x0F
-REG_STATUS = 0x13
-REG_CDATAL = 0x14
-
-ENABLE_PON = 0x01
-ENABLE_AEN = 0x02
+sensor.integration_time = 50
+sensor.gain = 4
 
 
-def write_register(bus, register, value):
-    bus.write_byte_data(
-        TCS34725_ADDRESS,
-        COMMAND_BIT | register,
-        value
-    )
+def color_block(r, g, b):
+    """
+    Prints a true-color ANSI background block.
+    Works in most modern terminals.
+    """
+    return f"\033[48;2;{r};{g};{b}m          \033[0m"
 
 
-def read_register(bus, register):
-    return bus.read_byte_data(
-        TCS34725_ADDRESS,
-        COMMAND_BIT | register
-    )
+def rgb_to_hex(r, g, b):
+    return f"#{r:02X}{g:02X}{b:02X}"
 
 
-def read_word(bus, register):
-    low = read_register(bus, register)
-    high = read_register(bus, register + 1)
-    return low | (high << 8)
+print("TCS34725 color sensor started.")
+print("Showing reconstructed color in terminal.")
+print("Press Ctrl+C to stop.")
+print()
 
+try:
+    while True:
+        r, g, b = sensor.color_rgb_bytes
+        lux = sensor.lux
+        color_temperature = sensor.color_temperature
 
-def setup_sensor(bus):
-    # Power on
-    write_register(bus, REG_ENABLE, ENABLE_PON)
-    time.sleep(0.01)
+        hex_color = rgb_to_hex(r, g, b)
+        block = color_block(r, g, b)
 
-    # Enable RGBC sensor
-    write_register(bus, REG_ENABLE, ENABLE_PON | ENABLE_AEN)
+        print(
+            f"{block}  "
+            f"RGB: {r:3d}, {g:3d}, {b:3d}  "
+            f"HEX: {hex_color}  "
+            f"Lux: {lux:8.2f}  "
+            f"Temp: {color_temperature:5d}K",
+            end="\r",
+            flush=True
+        )
 
-    # Integration time
-    # 0xEB is about 50 ms
-    # Lower value = longer integration = more sensitive
-    write_register(bus, REG_ATIME, 0xEB)
+        time.sleep(0.1)
 
-    # Gain
-    # 0x00 = 1x
-    # 0x01 = 4x
-    # 0x02 = 16x
-    # 0x03 = 60x
-    write_register(bus, REG_CONTROL, 0x01)
-
-
-def read_color(bus):
-    status = read_register(bus, REG_STATUS)
-
-    # Bit 0 means valid color data available
-    if not status & 0x01:
-        return None
-
-    clear = read_word(bus, REG_CDATAL)
-    red = read_word(bus, REG_CDATAL + 2)
-    green = read_word(bus, REG_CDATAL + 4)
-    blue = read_word(bus, REG_CDATAL + 6)
-
-    return clear, red, green, blue
-
-
-def main():
-    try:
-        bus = smbus.SMBus(I2C_BUS)
-    except FileNotFoundError:
-        print(f"I2C bus {I2C_BUS} not found.")
-        print("Check that dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15 is in /boot/config.txt")
-        sys.exit(1)
-
-    try:
-        setup_sensor(bus)
-        print("TCS34725 color sensor started.")
-        print("Press Ctrl+C to stop.")
-        print()
-
-        while True:
-            color = read_color(bus)
-
-            if color is None:
-                print("Waiting for valid color data...", end="\r")
-            else:
-                clear, red, green, blue = color
-
-                if clear > 0:
-                    red_percent = red / clear * 100
-                    green_percent = green / clear * 100
-                    blue_percent = blue / clear * 100
-                else:
-                    red_percent = green_percent = blue_percent = 0
-
-                print(
-                    f"CLEAR: {clear:5d} | "
-                    f"RED: {red:5d} | "
-                    f"GREEN: {green:5d} | "
-                    f"BLUE: {blue:5d} | "
-                    f"R%: {red_percent:5.1f} | "
-                    f"G%: {green_percent:5.1f} | "
-                    f"B%: {blue_percent:5.1f}",
-                    end="\r"
-                )
-
-            time.sleep(0.1)
-
-    except KeyboardInterrupt:
-        print("\nStopped.")
-
-    finally:
-        bus.close()
-
-
-if __name__ == "__main__":
-    main()
+except KeyboardInterrupt:
+    print("\nStopped.")
