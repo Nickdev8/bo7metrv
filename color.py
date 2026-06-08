@@ -60,11 +60,14 @@ try:
         raw_block = color_block(raw_r, raw_g, raw_b)
         bright_block = color_block(bright_r, bright_g, bright_b)
 
+        lux_text = f"{lux:8.2f}" if lux is not None else "   n/a  "
+        temp_text = f"{color_temperature:5.0f}K" if color_temperature is not None else " n/a "
+
         print(
             f"RAW {raw_block} RGB: {raw_r:3d}, {raw_g:3d}, {raw_b:3d} {raw_hex}  |  "
             f"BOOSTED {bright_block} RGB: {bright_r:3d}, {bright_g:3d}, {bright_b:3d} {bright_hex}  |  "
-            f"Lux: {lux:8.2f}  "
-            f"Temp: {color_temperature:5.0f}K",
+            f"Lux: {lux_text}  "
+            f"Temp: {temp_text}",
             end="\r",
             flush=True
         )
