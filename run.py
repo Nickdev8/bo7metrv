@@ -33,8 +33,8 @@ TERMINAL_COLOR_HEX = {
 }
 
 CALIBRATION_COLORS = [
-    ((110, 255, 170), "blue"),
-    ((228, 170, 255), "magenta"),
+    ((100, 255, 160), "blue"),
+    ((228, 180, 218), "magenta"),
     ((255, 255, 80), "yellow"),
     ((255, 115, 80), "orange"),
     ((255, 80, 80), "pink"),
