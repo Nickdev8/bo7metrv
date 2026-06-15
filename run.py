@@ -5,7 +5,6 @@ from adafruit_extended_bus import ExtendedI2C
 from gpiozero import Button, LED
 
 
-# I2C sensor bus:
 # dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
 I2C_BUS = 3
 
@@ -13,27 +12,34 @@ SENSOR_LED_PIN = 18
 TOGGLE_SENSOR_LED_BUTTON_PIN = 23
 EXIT_BUTTON_PIN = 24
 
+#[25, 8, 7, 1, 12, 16]
+
 COLOR_LED_PINS = {
-    "pink": 25,
+    "blue": 25,
     "orange": 8,
     "yellow": 7,
     "magenta": 1,
-    "blue": 12,
+    "pink": 12,
     # "x": 16,
 }
 
-# Replace these RGB values with boosted readings printed by this program.
-# You can add multiple samples for the same color.
+TERMINAL_COLOR_HEX = {
+    "blue": "#0000FF",
+    "orange": "#FFA500",
+    "yellow": "#FFFF00",
+    "magenta": "#FF00FF",
+    "pink": "#FF69B4",
+    "none": "#808080",
+}
+
 CALIBRATION_COLORS = [
-    ((255, 80, 80), "pink"),
+    ((110, 255, 170), "blue"),
     ((228, 170, 255), "magenta"),
     ((255, 255, 80), "yellow"),
     ((255, 115, 80), "orange"),
-    ((110, 255, 170), "blue"),
+    ((255, 80, 80), "pink"),
 ]
 
-# A lower value requires a closer match. Set to None to always use the
-# nearest calibrated color.
 MAX_COLOR_DISTANCE = 100
 MINIMUM_BOOSTED_BRIGHTNESS = 80
 READ_DELAY = 0.1
@@ -122,6 +128,21 @@ def validate_calibration_colors():
         names = ", ".join(sorted(unknown_colors))
         raise ValueError(f"No LED pin configured for: {names}")
 
+    missing_terminal_colors = set(COLOR_LED_PINS) - set(TERMINAL_COLOR_HEX)
+    if missing_terminal_colors:
+        names = ", ".join(sorted(missing_terminal_colors))
+        raise ValueError(f"No terminal color configured for: {names}")
+
+
+def terminal_color_name(color, width=0):
+    hex_color = TERMINAL_COLOR_HEX[color].lstrip("#")
+    red = int(hex_color[0:2], 16)
+    green = int(hex_color[2:4], 16)
+    blue = int(hex_color[4:6], 16)
+    text = f"{color:{width}s}"
+
+    return f"\033[38;2;{red};{green};{blue}m{text}\033[0m"
+
 
 def show_color(color):
     for name, led in color_leds.items():
@@ -154,7 +175,7 @@ validate_calibration_colors()
 print("Color sensor and LEDs started.")
 print("LED mapping:")
 for color_name, pin in COLOR_LED_PINS.items():
-    print(f"  {color_name:7s} -> GPIO {pin}")
+    print(f"  {terminal_color_name(color_name, 7)} -> GPIO {pin}")
 print("GPIO 23 toggles the sensor LED.")
 print("GPIO 24 or Ctrl+C stops the program.")
 
@@ -165,11 +186,12 @@ try:
         detected_color, distance = detect_color(red, green, blue)
         show_color(detected_color)
 
-        color_text = detected_color if detected_color else "none"
+        color_name = detected_color if detected_color else "none"
+        color_text = terminal_color_name(color_name, 7)
         print(
             f"RAW: ({raw_red:3d}, {raw_green:3d}, {raw_blue:3d})  "
             f"BOOSTED: ({red:3d}, {green:3d}, {blue:3d}) "
-            f"-> {color_text:7s} (distance: {distance:5.1f})",
+            f"-> {color_text} (distance: {distance:5.1f})",
             end="\r",
             flush=True,
         )
