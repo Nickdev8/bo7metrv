@@ -9,8 +9,8 @@ from gpiozero import Button, LED, Servo
 I2C_BUS = 3
 
 SENSOR_LED_PIN = 18
-TOGGLE_SENSOR_LED_BUTTON_PIN = 23
-EXIT_BUTTON_PIN = 24
+TOGGLE_SERVO_BUTTON_PIN = 23
+TOGGLE_LEDS_BUTTON_PIN = 24
 SERVO_PIN = 2
 SERVO_POSITION_TIME = 2
 
@@ -63,19 +63,20 @@ color_leds = {
     for color, pin in COLOR_LED_PINS.items()
 }
 
-toggle_sensor_led_button = Button(
-    TOGGLE_SENSOR_LED_BUTTON_PIN,
+toggle_servo_button = Button(
+    TOGGLE_SERVO_BUTTON_PIN,
     pull_up=True,
     bounce_time=0.2,
 )
-exit_button = Button(
-    EXIT_BUTTON_PIN,
+toggle_leds_button = Button(
+    TOGGLE_LEDS_BUTTON_PIN,
     pull_up=True,
     bounce_time=0.2,
 )
 
-sensor_led_on = True
 running = True
+leds_enabled = True
+servo_running = True
 servo_at_maximum = False
 last_servo_move = time.monotonic()
 
@@ -155,30 +156,47 @@ def terminal_color_name(color, width=0):
 
 def show_color(color):
     for name, led in color_leds.items():
-        if name == color:
+        if leds_enabled and name == color:
             led.on()
         else:
             led.off()
 
 
-def toggle_sensor_led():
-    global sensor_led_on
+def toggle_servo():
+    global last_servo_move
+    global servo_at_maximum
+    global servo_running
 
-    sensor_led_on = not sensor_led_on
-    if sensor_led_on:
+    servo_running = not servo_running
+    if servo_running:
+        servo_at_maximum = False
+        last_servo_move = time.monotonic()
+        servo.min()
+        print("\nServo enabled.")
+    else:
+        servo.detach()
+        print("\nServo disabled.")
+
+
+def toggle_leds():
+    global leds_enabled
+
+    leds_enabled = not leds_enabled
+    if leds_enabled:
         sensor_led.on()
+        print("\nLEDs enabled.")
     else:
         sensor_led.off()
-
-
-def stop_program():
-    global running
-    running = False
+        show_color(None)
+        print("\nLEDs disabled.")
 
 
 def update_servo():
     global last_servo_move
     global servo_at_maximum
+
+    if not servo_running:
+        return
 
     now = time.monotonic()
     if now - last_servo_move < SERVO_POSITION_TIME:
@@ -193,8 +211,8 @@ def update_servo():
     last_servo_move = now
 
 
-toggle_sensor_led_button.when_pressed = toggle_sensor_led
-exit_button.when_pressed = stop_program
+toggle_servo_button.when_pressed = toggle_servo
+toggle_leds_button.when_pressed = toggle_leds
 sensor_led.on()
 servo.min()
 validate_calibration_colors()
@@ -203,8 +221,9 @@ print("Color sensor, LEDs, and servo started.")
 print("LED mapping:")
 for color_name, pin in COLOR_LED_PINS.items():
     print(f"  {terminal_color_name(color_name, 7)} -> GPIO {pin}")
-print("GPIO 23 toggles the sensor LED.")
-print("GPIO 24 or Ctrl+C stops the program.")
+print("GPIO 23 toggles the servo.")
+print("GPIO 24 toggles the sensor LED and color LEDs.")
+print("Press Ctrl+C to stop the program.")
 print("Servo on GPIO 2 changes position every 2 seconds.")
 
 try:
