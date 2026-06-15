@@ -2,7 +2,7 @@ import time
 
 import adafruit_tcs34725
 from adafruit_extended_bus import ExtendedI2C
-from gpiozero import Button, LED
+from gpiozero import Button, LED, Servo
 
 
 # dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
@@ -11,6 +11,8 @@ I2C_BUS = 3
 SENSOR_LED_PIN = 18
 TOGGLE_SENSOR_LED_BUTTON_PIN = 23
 EXIT_BUTTON_PIN = 24
+SERVO_PIN = 2
+SERVO_POSITION_TIME = 2
 
 #[25, 8, 7, 1, 12, 16]
 
@@ -51,6 +53,11 @@ sensor.integration_time = 154
 sensor.gain = 16
 
 sensor_led = LED(SENSOR_LED_PIN)
+servo = Servo(
+    SERVO_PIN,
+    min_pulse_width=1 / 1000,
+    max_pulse_width=2 / 1000,
+)
 color_leds = {
     color: LED(pin)
     for color, pin in COLOR_LED_PINS.items()
@@ -69,6 +76,8 @@ exit_button = Button(
 
 sensor_led_on = True
 running = True
+servo_at_maximum = False
+last_servo_move = time.monotonic()
 
 
 def brighten_rgb(red, green, blue):
@@ -167,20 +176,41 @@ def stop_program():
     running = False
 
 
+def update_servo():
+    global last_servo_move
+    global servo_at_maximum
+
+    now = time.monotonic()
+    if now - last_servo_move < SERVO_POSITION_TIME:
+        return
+
+    servo_at_maximum = not servo_at_maximum
+    if servo_at_maximum:
+        servo.max()
+    else:
+        servo.min()
+
+    last_servo_move = now
+
+
 toggle_sensor_led_button.when_pressed = toggle_sensor_led
 exit_button.when_pressed = stop_program
 sensor_led.on()
+servo.min()
 validate_calibration_colors()
 
-print("Color sensor and LEDs started.")
+print("Color sensor, LEDs, and servo started.")
 print("LED mapping:")
 for color_name, pin in COLOR_LED_PINS.items():
     print(f"  {terminal_color_name(color_name, 7)} -> GPIO {pin}")
 print("GPIO 23 toggles the sensor LED.")
 print("GPIO 24 or Ctrl+C stops the program.")
+print("Servo on GPIO 2 changes position every 2 seconds.")
 
 try:
     while running:
+        update_servo()
+
         raw_red, raw_green, raw_blue = sensor.color_rgb_bytes
         red, green, blue = brighten_rgb(raw_red, raw_green, raw_blue)
         detected_color, distance = detect_color(red, green, blue)
@@ -204,4 +234,5 @@ except KeyboardInterrupt:
 finally:
     sensor_led.off()
     show_color(None)
+    servo.detach()
     print("\nStopped.")
