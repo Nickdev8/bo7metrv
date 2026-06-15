@@ -15,20 +15,21 @@ EXIT_BUTTON_PIN = 24
 
 COLOR_LED_PINS = {
     "pink": 25,
-    "yellow": 8,
-    "blue": 7,
-    # "cyan": 1,
-    # "blue": 12,
-    # "magenta": 16,
+    "orange": 8,
+    "yellow": 7,
+    "magenta": 1,
+    "blue": 12,
+    # "x": 16,
 }
 
 # Replace these RGB values with boosted readings printed by this program.
 # You can add multiple samples for the same color.
 CALIBRATION_COLORS = [
     ((255, 80, 80), "pink"),
+    ((228, 170, 255), "magenta"),
     ((255, 255, 80), "yellow"),
-    ((110, 255, 207), "blue"),
-    # ((0, 255, 255), "cyan"),
+    ((255, 115, 80), "orange"),
+    ((110, 255, 170), "blue"),
 ]
 
 # A lower value requires a closer match. Set to None to always use the
