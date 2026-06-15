@@ -1,89 +1,143 @@
-import pygame
-import sys
-from pathlib import Path
+import colorsys
+import time
+
+import adafruit_tcs34725
+from adafruit_extended_bus import ExtendedI2C
+from gpiozero import Button, LED
 
 
-IMAGE_FILES = {
-    pygame.K_1: "image-1.jpg",
-    pygame.K_2: "furkan-test.jpg",
-    pygame.K_3: "image-3.jpg",
-    pygame.K_4: "image-4.jpg",
+# I2C sensor bus:
+# dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
+I2C_BUS = 3
+
+SENSOR_LED_PIN = 18
+TOGGLE_SENSOR_LED_BUTTON_PIN = 23
+EXIT_BUTTON_PIN = 24
+
+COLOR_LED_PINS = {
+    "red": 25,
+    "yellow": 8,
+    "green": 7,
+    "cyan": 1,
+    "blue": 12,
+    "magenta": 16,
 }
 
-
-def quit_now():
-    pygame.quit()
-    sys.exit(0)
-
-
-def load_scaled_image(image_path, screen_width, screen_height):
-    image_file = Path(image_path)
-
-    if not image_file.exists():
-        print(f"Image not found: {image_file}")
-        return None, None
-
-    image = pygame.image.load(str(image_file)).convert()
-
-    img_width, img_height = image.get_size()
-    scale = min(screen_width / img_width, screen_height / img_height)
-
-    new_width = int(img_width * scale)
-    new_height = int(img_height * scale)
-
-    image = pygame.transform.smoothscale(image, (new_width, new_height))
-
-    x = (screen_width - new_width) // 2
-    y = (screen_height - new_height) // 2
-
-    return image, (x, y)
+MIN_BRIGHTNESS = 20
+MIN_SATURATION = 0.20
+READ_DELAY = 0.1
 
 
-def main():
-    pygame.init()
+i2c = ExtendedI2C(I2C_BUS)
+sensor = adafruit_tcs34725.TCS34725(i2c)
+sensor.integration_time = 154
+sensor.gain = 16
 
-    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-    pygame.display.set_caption("Image Viewer")
+sensor_led = LED(SENSOR_LED_PIN)
+color_leds = {
+    color: LED(pin)
+    for color, pin in COLOR_LED_PINS.items()
+}
 
-    screen_width, screen_height = screen.get_size()
+toggle_sensor_led_button = Button(
+    TOGGLE_SENSOR_LED_BUTTON_PIN,
+    pull_up=True,
+    bounce_time=0.2,
+)
+exit_button = Button(
+    EXIT_BUTTON_PIN,
+    pull_up=True,
+    bounce_time=0.2,
+)
 
-    current_image, current_position = load_scaled_image(
-        "image-1.jpg",
-        screen_width,
-        screen_height
+sensor_led_on = True
+running = True
+
+
+def detect_color(red, green, blue):
+    brightness = max(red, green, blue)
+    if brightness < MIN_BRIGHTNESS:
+        return None
+
+    hue, saturation, _ = colorsys.rgb_to_hsv(
+        red / 255,
+        green / 255,
+        blue / 255,
     )
 
-    if current_image is None:
-        quit_now()
+    if saturation < MIN_SATURATION:
+        return None
 
-    clock = pygame.time.Clock()
+    hue_degrees = hue * 360
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                quit_now()
-
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    quit_now()
-
-                if event.key in IMAGE_FILES:
-                    loaded_image, loaded_position = load_scaled_image(
-                        IMAGE_FILES[event.key],
-                        screen_width,
-                        screen_height
-                    )
-
-                    if loaded_image is not None:
-                        current_image = loaded_image
-                        current_position = loaded_position
-
-        screen.fill((0, 0, 0))
-        screen.blit(current_image, current_position)
-        pygame.display.flip()
-
-        clock.tick(60)
+    if hue_degrees < 30 or hue_degrees >= 330:
+        return "red"
+    if hue_degrees < 90:
+        return "yellow"
+    if hue_degrees < 150:
+        return "green"
+    if hue_degrees < 210:
+        return "cyan"
+    if hue_degrees < 270:
+        return "blue"
+    return "magenta"
 
 
-if __name__ == "__main__":
-    main()
+def show_color(color):
+    for name, led in color_leds.items():
+        if name == color:
+            led.on()
+        else:
+            led.off()
+
+
+def toggle_sensor_led():
+    global sensor_led_on
+
+    sensor_led_on = not sensor_led_on
+    if sensor_led_on:
+        sensor_led.on()
+    else:
+        sensor_led.off()
+
+
+def stop_program():
+    global running
+    running = False
+
+
+toggle_sensor_led_button.when_pressed = toggle_sensor_led
+exit_button.when_pressed = stop_program
+sensor_led.on()
+
+print("Color sensor and LEDs started.")
+print("LED mapping:")
+for color_name, pin in COLOR_LED_PINS.items():
+    print(f"  {color_name:7s} -> GPIO {pin}")
+print("GPIO 23 toggles the sensor LED.")
+print("GPIO 24 or Ctrl+C stops the program.")
+
+last_color = object()
+
+try:
+    while running:
+        red, green, blue = sensor.color_rgb_bytes
+        detected_color = detect_color(red, green, blue)
+        show_color(detected_color)
+
+        if detected_color != last_color:
+            color_text = detected_color if detected_color else "none"
+            print(
+                f"RGB: {red:3d}, {green:3d}, {blue:3d} -> {color_text}"
+            )
+            last_color = detected_color
+
+        time.sleep(READ_DELAY)
+
+except KeyboardInterrupt:
+    pass
+
+finally:
+    sensor_led.off()
+    show_color(None)
+    print("Stopped.")
