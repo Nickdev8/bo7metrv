@@ -1,4 +1,3 @@
-import colorsys
 import time
 
 import adafruit_tcs34725
@@ -15,16 +14,27 @@ TOGGLE_SENSOR_LED_BUTTON_PIN = 23
 EXIT_BUTTON_PIN = 24
 
 COLOR_LED_PINS = {
-    "red": 25,
+    "pink": 25,
     "yellow": 8,
-    "green": 7,
-    "cyan": 1,
-    "blue": 12,
-    "magenta": 16,
+    "blue": 7,
+    # "cyan": 1,
+    # "blue": 12,
+    # "magenta": 16,
 }
 
-MIN_BRIGHTNESS = 20
-MIN_SATURATION = 0.20
+# Replace these RGB values with boosted readings printed by this program.
+# You can add multiple samples for the same color.
+CALIBRATION_COLORS = [
+    ((255, 80, 80), "pink"),
+    ((255, 255, 80), "yellow"),
+    ((110, 255, 207), "blue"),
+    # ((0, 255, 255), "cyan"),
+]
+
+# A lower value requires a closer match. Set to None to always use the
+# nearest calibrated color.
+MAX_COLOR_DISTANCE = 100
+MINIMUM_BOOSTED_BRIGHTNESS = 80
 READ_DELAY = 0.1
 
 
@@ -54,33 +64,62 @@ sensor_led_on = True
 running = True
 
 
-def detect_color(red, green, blue):
-    brightness = max(red, green, blue)
-    if brightness < MIN_BRIGHTNESS:
-        return None
+def brighten_rgb(red, green, blue):
+    max_value = max(red, green, blue)
 
-    hue, saturation, _ = colorsys.rgb_to_hsv(
-        red / 255,
-        green / 255,
-        blue / 255,
+    if max_value == 0:
+        return 0, 0, 0
+
+    scale = 255 / max_value
+    boosted = [
+        int(value * scale)
+        for value in (red, green, blue)
+    ]
+
+    return tuple(
+        min(
+            max(value, MINIMUM_BOOSTED_BRIGHTNESS if value > 0 else 0),
+            255,
+        )
+        for value in boosted
     )
 
-    if saturation < MIN_SATURATION:
-        return None
 
-    hue_degrees = hue * 360
+def detect_color(red, green, blue):
+    closest_rgb, closest_color = min(
+        CALIBRATION_COLORS,
+        key=lambda calibration: color_distance(
+            (red, green, blue),
+            calibration[0],
+        ),
+    )
+    distance = color_distance((red, green, blue), closest_rgb)
 
-    if hue_degrees < 30 or hue_degrees >= 330:
-        return "red"
-    if hue_degrees < 90:
-        return "yellow"
-    if hue_degrees < 150:
-        return "green"
-    if hue_degrees < 210:
-        return "cyan"
-    if hue_degrees < 270:
-        return "blue"
-    return "magenta"
+    if MAX_COLOR_DISTANCE is not None and distance > MAX_COLOR_DISTANCE:
+        return None, distance
+
+    return closest_color, distance
+
+
+def color_distance(first, second):
+    return sum(
+        (first_value - second_value) ** 2
+        for first_value, second_value in zip(first, second)
+    ) ** 0.5
+
+
+def validate_calibration_colors():
+    if not CALIBRATION_COLORS:
+        raise ValueError("CALIBRATION_COLORS must contain at least one color.")
+
+    unknown_colors = {
+        color
+        for _, color in CALIBRATION_COLORS
+        if color not in COLOR_LED_PINS
+    }
+    if unknown_colors:
+        names = ", ".join(sorted(unknown_colors))
+        raise ValueError(f"No LED pin configured for: {names}")
 
 
 def show_color(color):
@@ -109,6 +148,7 @@ def stop_program():
 toggle_sensor_led_button.when_pressed = toggle_sensor_led
 exit_button.when_pressed = stop_program
 sensor_led.on()
+validate_calibration_colors()
 
 print("Color sensor and LEDs started.")
 print("LED mapping:")
@@ -117,20 +157,21 @@ for color_name, pin in COLOR_LED_PINS.items():
 print("GPIO 23 toggles the sensor LED.")
 print("GPIO 24 or Ctrl+C stops the program.")
 
-last_color = object()
-
 try:
     while running:
-        red, green, blue = sensor.color_rgb_bytes
-        detected_color = detect_color(red, green, blue)
+        raw_red, raw_green, raw_blue = sensor.color_rgb_bytes
+        red, green, blue = brighten_rgb(raw_red, raw_green, raw_blue)
+        detected_color, distance = detect_color(red, green, blue)
         show_color(detected_color)
 
-        if detected_color != last_color:
-            color_text = detected_color if detected_color else "none"
-            print(
-                f"RGB: {red:3d}, {green:3d}, {blue:3d} -> {color_text}"
-            )
-            last_color = detected_color
+        color_text = detected_color if detected_color else "none"
+        print(
+            f"RAW: ({raw_red:3d}, {raw_green:3d}, {raw_blue:3d})  "
+            f"BOOSTED: ({red:3d}, {green:3d}, {blue:3d}) "
+            f"-> {color_text:7s} (distance: {distance:5.1f})",
+            end="\r",
+            flush=True,
+        )
 
         time.sleep(READ_DELAY)
 
@@ -140,4 +181,4 @@ except KeyboardInterrupt:
 finally:
     sensor_led.off()
     show_color(None)
-    print("Stopped.")
+    print("\nStopped.")
