@@ -1,7 +1,7 @@
 [Unit]
 Description=bo7metrv image and servo controller
-After=local-fs.target graphical.target pigpiod.service
-Wants=graphical.target pigpiod.service
+After=local-fs.target graphical.target
+Wants=graphical.target
 
 [Service]
 Type=simple
