@@ -51,12 +51,8 @@ MAX_COLOR_DISTANCE = 100
 MINIMUM_BOOSTED_BRIGHTNESS = 80
 READ_DELAY = 0.1
 IMAGE_RETRY_DELAY = 5
+SENSOR_RETRY_DELAY = 5
 
-
-i2c = ExtendedI2C(I2C_BUS)
-sensor = adafruit_tcs34725.TCS34725(i2c)
-sensor.integration_time = 154
-sensor.gain = 16
 
 sensor_led = LED(SENSOR_LED_PIN)
 servo = Servo(
@@ -217,6 +213,19 @@ def update_servo():
     last_servo_move = now
 
 
+def start_sensor():
+    try:
+        i2c = ExtendedI2C(I2C_BUS)
+        color_sensor = adafruit_tcs34725.TCS34725(i2c)
+        color_sensor.integration_time = 154
+        color_sensor.gain = 16
+        print("\nColor sensor ready.")
+        return color_sensor
+    except Exception as error:
+        print(f"\nColor sensor not ready: {error}")
+        return None
+
+
 def start_image_viewer():
     try:
         return ImageViewer()
@@ -238,8 +247,10 @@ if sys.stdin.isatty():
 
 image_viewer = start_image_viewer()
 next_image_retry = time.monotonic() + IMAGE_RETRY_DELAY
+sensor = start_sensor()
+next_sensor_retry = time.monotonic() + SENSOR_RETRY_DELAY
 
-print("Color sensor, LEDs, and servo started.")
+print("Image viewer, color sensor, LEDs, and servo started.")
 print("LED mapping:")
 for color_name, pin in COLOR_LED_PINS.items():
     print(f"  {terminal_color_name(color_name, 7)} -> GPIO {pin}")
@@ -263,20 +274,31 @@ try:
             running = False
             break
 
-        raw_red, raw_green, raw_blue = sensor.color_rgb_bytes
-        red, green, blue = brighten_rgb(raw_red, raw_green, raw_blue)
-        detected_color, distance = detect_color(red, green, blue)
-        show_color(detected_color)
+        if sensor is None:
+            now = time.monotonic()
+            if now >= next_sensor_retry:
+                sensor = start_sensor()
+                next_sensor_retry = now + SENSOR_RETRY_DELAY
+        else:
+            try:
+                raw_red, raw_green, raw_blue = sensor.color_rgb_bytes
+                red, green, blue = brighten_rgb(raw_red, raw_green, raw_blue)
+                detected_color, distance = detect_color(red, green, blue)
+                show_color(detected_color)
 
-        color_name = detected_color if detected_color else "none"
-        color_text = terminal_color_name(color_name, 7)
-        print(
-            f"RAW: ({raw_red:3d}, {raw_green:3d}, {raw_blue:3d})  "
-            f"BOOSTED: ({red:3d}, {green:3d}, {blue:3d}) "
-            f"-> {color_text} (distance: {distance:5.1f})",
-            end="\r",
-            flush=True,
-        )
+                color_name = detected_color if detected_color else "none"
+                color_text = terminal_color_name(color_name, 7)
+                print(
+                    f"RAW: ({raw_red:3d}, {raw_green:3d}, {raw_blue:3d})  "
+                    f"BOOSTED: ({red:3d}, {green:3d}, {blue:3d}) "
+                    f"-> {color_text} (distance: {distance:5.1f})",
+                    end="\r",
+                    flush=True,
+                )
+            except Exception as error:
+                print(f"\nColor sensor read failed: {error}")
+                sensor = None
+                show_color(None)
 
         time.sleep(READ_DELAY)
 
