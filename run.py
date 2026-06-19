@@ -4,7 +4,12 @@ import threading
 import time
 import tty
 
-from gpiozero import Button, Servo
+from gpiozero import AngularServo, Button
+
+try:
+    from gpiozero.pins.pigpio import PiGPIOFactory
+except ImportError:
+    PiGPIOFactory = None
 
 from image import ImageViewer, read_terminal_key
 
@@ -15,13 +20,17 @@ SERVO_PIN = 18
 
 READ_DELAY = 0.05
 IMAGE_RETRY_DELAY = 5
+SERVO_SETTLE_TIME = 0.7
+SERVO_MIN_PULSE_WIDTH = 0.5 / 1000
+SERVO_MAX_PULSE_WIDTH = 2.5 / 1000
+SERVO_FRAME_WIDTH = 20 / 1000
 
 IMAGE_STEPS = [
-    ("image-1.jpg", -90, -1.0),
-    ("furkan-test.jpg", -45, -0.5),
-    ("furkan-test.jpg", 0, 0.0),
-    ("furkan-test.jpg", 45, 0.5),
-    ("furkan-test.jpg", 90, 1.0),
+    ("image-1.jpg", -90),
+    ("furkan-test.jpg", -45),
+    ("furkan-test.jpg", 0),
+    ("furkan-test.jpg", 45),
+    ("furkan-test.jpg", 90),
 ]
 
 
@@ -29,6 +38,7 @@ running = True
 current_step = 0
 pending_step_delta = 0
 pending_step_lock = threading.Lock()
+last_servo_move = None
 
 
 def start_button(name, pin, callback):
@@ -47,11 +57,24 @@ def start_button(name, pin, callback):
 
 def start_servo():
     try:
-        return Servo(
+        pin_factory = None
+        if PiGPIOFactory is not None:
+            try:
+                pin_factory = PiGPIOFactory()
+            except Exception as error:
+                print(f"pigpio timing unavailable, using default GPIO timing: {error}")
+
+        servo = AngularServo(
             SERVO_PIN,
-            min_pulse_width=1 / 1000,
-            max_pulse_width=2 / 1000,
+            min_angle=-90,
+            max_angle=90,
+            min_pulse_width=SERVO_MIN_PULSE_WIDTH,
+            max_pulse_width=SERVO_MAX_PULSE_WIDTH,
+            frame_width=SERVO_FRAME_WIDTH,
+            pin_factory=pin_factory,
         )
+        print("Servo using pigpio timing." if pin_factory else "Servo using default GPIO timing.")
+        return servo
     except Exception as error:
         print(f"Servo on GPIO {SERVO_PIN} not ready: {error}")
         return None
@@ -67,15 +90,17 @@ def start_image_viewer():
 
 def set_step(step, image_viewer, servo):
     global current_step
+    global last_servo_move
 
     current_step = step % len(IMAGE_STEPS)
-    image_file, degrees, servo_value = IMAGE_STEPS[current_step]
+    image_file, degrees = IMAGE_STEPS[current_step]
 
     if image_viewer is not None:
         image_viewer.load_image(image_file)
 
     if servo is not None:
-        servo.value = servo_value
+        servo.angle = degrees
+        last_servo_move = time.monotonic()
 
     print(
         f"Image {current_step + 1}/{len(IMAGE_STEPS)}: {image_file} "
@@ -109,6 +134,17 @@ def take_pending_step_delta():
     return delta
 
 
+def update_servo_hold(servo):
+    global last_servo_move
+
+    if servo is None or last_servo_move is None:
+        return
+
+    if time.monotonic() - last_servo_move >= SERVO_SETTLE_TIME:
+        servo.detach()
+        last_servo_move = None
+
+
 def main():
     global running
 
@@ -139,6 +175,8 @@ def main():
         print("Terminal controls: n/Space = next, p = previous, q = quit")
 
         while running:
+            update_servo_hold(servo)
+
             if image_viewer is None:
                 now = time.monotonic()
                 if now >= next_image_retry:
