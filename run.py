@@ -19,15 +19,23 @@ TOGGLE_LEDS_BUTTON_PIN = 24
 SERVO_PIN = 2
 SERVO_POSITION_TIME = 2
 
-#[25, 8, 7, 1, 12, 16]
+# Touchscreen uses GPIO7, GPIO9, GPIO10, GPIO11, and GPIO25.
+# Do not use those pins for project LEDs/buttons.
 
 COLOR_LED_PINS = {
-    "blue": 25,
+    "blue": 16,
     "orange": 8,
-    "yellow": 7,
+    "yellow": 20,
     "magenta": 1,
     "pink": 12,
-    # "x": 16,
+}
+
+TOUCHSCREEN_GPIO_PINS = {
+    11,  # SPI0 SCLK
+    10,  # SPI0 MOSI
+    9,   # SPI0 MISO
+    7,   # SPI0 CE1 / CS1
+    25,  # Touch interrupt / PENIRQ / P6
 }
 
 TERMINAL_COLOR_HEX = {
@@ -54,27 +62,60 @@ IMAGE_RETRY_DELAY = 5
 SENSOR_RETRY_DELAY = 5
 
 
-sensor_led = LED(SENSOR_LED_PIN)
-servo = Servo(
-    SERVO_PIN,
-    min_pulse_width=1 / 1000,
-    max_pulse_width=2 / 1000,
-)
+def start_led(name, pin):
+    if pin in TOUCHSCREEN_GPIO_PINS:
+        print(f"\n{name} LED on GPIO {pin} skipped: reserved for touchscreen.")
+        return None
+
+    try:
+        return LED(pin)
+    except Exception as error:
+        print(f"\n{name} LED on GPIO {pin} not ready: {error}")
+        return None
+
+
+def start_servo():
+    if SERVO_PIN in TOUCHSCREEN_GPIO_PINS:
+        print(f"\nServo on GPIO {SERVO_PIN} skipped: reserved for touchscreen.")
+        return None
+
+    try:
+        return Servo(
+            SERVO_PIN,
+            min_pulse_width=1 / 1000,
+            max_pulse_width=2 / 1000,
+        )
+    except Exception as error:
+        print(f"\nServo on GPIO {SERVO_PIN} not ready: {error}")
+        return None
+
+
+def start_button(name, pin):
+    if pin in TOUCHSCREEN_GPIO_PINS:
+        print(f"\n{name} button on GPIO {pin} skipped: reserved for touchscreen.")
+        return None
+
+    try:
+        return Button(
+            pin,
+            pull_up=True,
+            bounce_time=0.2,
+        )
+    except Exception as error:
+        print(f"\n{name} button on GPIO {pin} not ready: {error}")
+        return None
+
+
+sensor_led = start_led("Sensor", SENSOR_LED_PIN)
+servo = start_servo()
 color_leds = {
-    color: LED(pin)
+    color: led
     for color, pin in COLOR_LED_PINS.items()
+    if (led := start_led(color, pin)) is not None
 }
 
-toggle_servo_button = Button(
-    TOGGLE_SERVO_BUTTON_PIN,
-    pull_up=True,
-    bounce_time=0.2,
-)
-toggle_leds_button = Button(
-    TOGGLE_LEDS_BUTTON_PIN,
-    pull_up=True,
-    bounce_time=0.2,
-)
+toggle_servo_button = start_button("Servo toggle", TOGGLE_SERVO_BUTTON_PIN)
+toggle_leds_button = start_button("LED toggle", TOGGLE_LEDS_BUTTON_PIN)
 
 running = True
 leds_enabled = True
@@ -170,6 +211,10 @@ def toggle_servo():
     global servo_running
 
     servo_running = not servo_running
+    if servo is None:
+        print("\nServo is not available.")
+        return
+
     if servo_running:
         servo_at_maximum = False
         last_servo_move = time.monotonic()
@@ -185,10 +230,12 @@ def toggle_leds():
 
     leds_enabled = not leds_enabled
     if leds_enabled:
-        sensor_led.on()
+        if sensor_led is not None:
+            sensor_led.on()
         print("\nLEDs enabled.")
     else:
-        sensor_led.off()
+        if sensor_led is not None:
+            sensor_led.off()
         show_color(None)
         print("\nLEDs disabled.")
 
@@ -198,6 +245,8 @@ def update_servo():
     global servo_at_maximum
 
     if not servo_running:
+        return
+    if servo is None:
         return
 
     now = time.monotonic()
@@ -234,10 +283,14 @@ def start_image_viewer():
         return None
 
 
-toggle_servo_button.when_pressed = toggle_servo
-toggle_leds_button.when_pressed = toggle_leds
-sensor_led.on()
-servo.min()
+if toggle_servo_button is not None:
+    toggle_servo_button.when_pressed = toggle_servo
+if toggle_leds_button is not None:
+    toggle_leds_button.when_pressed = toggle_leds
+if sensor_led is not None:
+    sensor_led.on()
+if servo is not None:
+    servo.min()
 validate_calibration_colors()
 
 original_terminal_settings = None
@@ -310,7 +363,9 @@ finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
     if image_viewer is not None:
         image_viewer.close()
-    sensor_led.off()
+    if sensor_led is not None:
+        sensor_led.off()
     show_color(None)
-    servo.detach()
+    if servo is not None:
+        servo.detach()
     print("\nStopped.")

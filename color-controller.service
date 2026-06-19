@@ -1,21 +1,29 @@
- [Unit]
-  Description=Color sensor, LEDs, and servo
-  After=local-fs.target
+[Unit]
+Description=Color sensor, LEDs, servo, and image viewer
+After=local-fs.target graphical.target
+Wants=graphical.target
 
-  [Service]
-  Type=simple
-  User=nick
-  WorkingDirectory=/home/pi/bo7metrv
-  ExecStart=/usr/bin/python3 /home/pi/bo7metrv/run.py
-  Environment=PYTHONUNBUFFERED=1
-  Restart=on-failure
-  RestartSec=5
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/bo7metrv
+ExecStart=/usr/bin/python3 /home/pi/bo7metrv/run.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
 
-  [Install]
-  WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target
 
-
-  sudo nano /etc/systemd/system/color-controller.service
-
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now color-controller.service
+# Add these boot config lines to /boot/firmware/config.txt or /boot/config.txt.
+# The i2c-gpio overlay keeps the color sensor on GPIO14/GPIO15.
+dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
+#
+# The touchscreen uses SPI0 plus PENIRQ on GPIO25.
+# dtparam=spi=on
+# dtoverlay=ads7846,penirq=25,cs=1
+#
+# Install/update the service with:
+sudo cp color-controller.service /etc/systemd/system/color-controller.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now color-controller.service
