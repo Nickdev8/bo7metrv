@@ -1,5 +1,6 @@
 import sys
 import termios
+import threading
 import time
 import tty
 
@@ -26,6 +27,8 @@ IMAGE_STEPS = [
 
 running = True
 current_step = 0
+pending_step_delta = 0
+pending_step_lock = threading.Lock()
 
 
 def start_button(name, pin, callback):
@@ -89,6 +92,23 @@ def previous_step(image_viewer, servo):
     set_step(current_step - 1, image_viewer, servo)
 
 
+def queue_step(delta):
+    global pending_step_delta
+
+    with pending_step_lock:
+        pending_step_delta += delta
+
+
+def take_pending_step_delta():
+    global pending_step_delta
+
+    with pending_step_lock:
+        delta = pending_step_delta
+        pending_step_delta = 0
+
+    return delta
+
+
 def main():
     global running
 
@@ -104,12 +124,12 @@ def main():
     previous_button = start_button(
         "Previous",
         PREVIOUS_BUTTON_PIN,
-        lambda: previous_step(image_viewer, servo),
+        lambda: queue_step(-1),
     )
     next_button = start_button(
         "Next",
         NEXT_BUTTON_PIN,
-        lambda: next_step(image_viewer, servo),
+        lambda: queue_step(1),
     )
 
     try:
@@ -127,6 +147,10 @@ def main():
                     if image_viewer is not None:
                         set_step(current_step, image_viewer, servo)
             else:
+                step_delta = take_pending_step_delta()
+                if step_delta:
+                    set_step(current_step + step_delta, image_viewer, servo)
+
                 terminal_key = read_terminal_key()
                 if terminal_key == "q":
                     break

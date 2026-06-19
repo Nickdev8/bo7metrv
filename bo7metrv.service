@@ -15,7 +15,7 @@ Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
 
 # The touchscreen uses SPI0 plus PENIRQ on GPIO25.
 # Add these boot config lines to /boot/firmware/config.txt or /boot/config.txt:
