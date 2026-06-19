@@ -8,9 +8,9 @@ from gpiozero import Button, Servo
 from image import ImageViewer, read_terminal_key
 
 
-PREVIOUS_BUTTON_PIN = 20
-NEXT_BUTTON_PIN = 21
-SERVO_PIN = 16
+PREVIOUS_BUTTON_PIN = 14
+NEXT_BUTTON_PIN = 15
+SERVO_PIN = 18
 
 READ_DELAY = 0.05
 IMAGE_RETRY_DELAY = 5
@@ -32,7 +32,7 @@ def start_button(name, pin, callback):
     try:
         button = Button(
             pin,
-            pull_up=True,
+            pull_up=False,
             bounce_time=0.2,
         )
         button.when_pressed = callback
