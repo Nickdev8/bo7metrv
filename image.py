@@ -1,5 +1,8 @@
 import os
+import select
 import sys
+import termios
+import tty
 from pathlib import Path
 
 
@@ -24,6 +27,13 @@ IMAGE_FILES = {
     pygame.K_2: "furkan-test.jpg",
     pygame.K_3: "image-3.jpg",
     pygame.K_4: "image-4.jpg",
+}
+
+TERMINAL_IMAGE_FILES = {
+    "1": "image-1.jpg",
+    "2": "furkan-test.jpg",
+    "3": "image-3.jpg",
+    "4": "image-4.jpg",
 }
 
 
@@ -55,50 +65,95 @@ def load_scaled_image(image_path, screen_width, screen_height):
     return image, (x, y)
 
 
+def read_terminal_key():
+    if not sys.stdin.isatty():
+        return None
+
+    readable, _, _ = select.select([sys.stdin], [], [], 0)
+    if not readable:
+        return None
+
+    return sys.stdin.read(1).lower()
+
+
+def load_image_for_screen(image_path, screen_width, screen_height):
+    return load_scaled_image(image_path, screen_width, screen_height)
+
+
 def main():
+    original_terminal_settings = None
+    if sys.stdin.isatty():
+        original_terminal_settings = termios.tcgetattr(sys.stdin)
+        tty.setcbreak(sys.stdin)
+
     pygame.init()
 
-    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-    pygame.display.set_caption("Image Viewer")
+    try:
+        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        pygame.display.set_caption("Image Viewer")
 
-    screen_width, screen_height = screen.get_size()
+        screen_width, screen_height = screen.get_size()
 
-    current_image, current_position = load_scaled_image(
-        "image-1.jpg",
-        screen_width,
-        screen_height
-    )
+        current_image, current_position = load_image_for_screen(
+            "image-1.jpg",
+            screen_width,
+            screen_height
+        )
 
-    if current_image is None:
-        quit_now()
+        if current_image is None:
+            quit_now()
 
-    clock = pygame.time.Clock()
+        print("Press 1-4 in this terminal to change images. Press q to quit.")
+        clock = pygame.time.Clock()
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+        while True:
+            terminal_key = read_terminal_key()
+            if terminal_key in ("q", "\x1b"):
                 quit_now()
 
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+            if terminal_key in TERMINAL_IMAGE_FILES:
+                loaded_image, loaded_position = load_image_for_screen(
+                    TERMINAL_IMAGE_FILES[terminal_key],
+                    screen_width,
+                    screen_height
+                )
+
+                if loaded_image is not None:
+                    current_image = loaded_image
+                    current_position = loaded_position
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
                     quit_now()
 
-                if event.key in IMAGE_FILES:
-                    loaded_image, loaded_position = load_scaled_image(
-                        IMAGE_FILES[event.key],
-                        screen_width,
-                        screen_height
-                    )
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        quit_now()
 
-                    if loaded_image is not None:
-                        current_image = loaded_image
-                        current_position = loaded_position
+                    if event.key in IMAGE_FILES:
+                        loaded_image, loaded_position = load_image_for_screen(
+                            IMAGE_FILES[event.key],
+                            screen_width,
+                            screen_height
+                        )
 
-        screen.fill((0, 0, 0))
-        screen.blit(current_image, current_position)
-        pygame.display.flip()
+                        if loaded_image is not None:
+                            current_image = loaded_image
+                            current_position = loaded_position
 
-        clock.tick(60)
+            screen.fill((0, 0, 0))
+            screen.blit(current_image, current_position)
+            pygame.display.flip()
+
+            clock.tick(60)
+
+    except KeyboardInterrupt:
+        pass
+
+    finally:
+        if original_terminal_settings is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
+        pygame.quit()
 
 
 if __name__ == "__main__":
