@@ -26,11 +26,11 @@ SERVO_MAX_PULSE_WIDTH = 2.5 / 1000
 SERVO_FRAME_WIDTH = 20 / 1000
 
 IMAGE_STEPS = [
-    ("image-1.jpg", -90),
-    ("furkan-test.jpg", -45),
+    ("image-1.jpg", -80),
+    ("furkan-test.jpg", -40),
     ("furkan-test.jpg", 0),
-    ("furkan-test.jpg", 45),
-    ("furkan-test.jpg", 90),
+    ("furkan-test.jpg", 40),
+    ("furkan-test.jpg", 80),
 ]
 
 
