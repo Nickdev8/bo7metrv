@@ -18,9 +18,9 @@ IMAGE_RETRY_DELAY = 5
 IMAGE_STEPS = [
     ("image-1.jpg", -90, -1.0),
     ("furkan-test.jpg", -45, -0.5),
-    ("image-3.jpg", 0, 0.0),
-    ("image-4.jpg", 45, 0.5),
-    ("image-5.jpg", 90, 1.0),
+    ("furkan-test.jpg", 0, 0.0),
+    ("furkan-test.jpg", 45, 0.5),
+    ("furkan-test.jpg", 90, 1.0),
 ]
 
 
