@@ -88,6 +88,16 @@ def start_image_viewer():
         return None
 
 
+def close_image_viewer(image_viewer):
+    if image_viewer is None:
+        return
+
+    try:
+        image_viewer.close()
+    except Exception as error:
+        print(f"Image viewer close failed: {error}")
+
+
 def set_step(step, image_viewer, servo):
     global current_step
     global last_servo_move
@@ -197,8 +207,16 @@ def main():
                 elif terminal_key in ("p", "a"):
                     previous_step(image_viewer, servo)
 
-                if not image_viewer.update(None):
-                    break
+                try:
+                    if not image_viewer.update(None):
+                        close_image_viewer(image_viewer)
+                        image_viewer = None
+                        next_image_retry = time.monotonic() + IMAGE_RETRY_DELAY
+                except Exception as error:
+                    print(f"Image viewer failed, retrying: {error}")
+                    close_image_viewer(image_viewer)
+                    image_viewer = None
+                    next_image_retry = time.monotonic() + IMAGE_RETRY_DELAY
 
             time.sleep(READ_DELAY)
 
@@ -208,8 +226,7 @@ def main():
     finally:
         if original_terminal_settings is not None:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
-        if image_viewer is not None:
-            image_viewer.close()
+        close_image_viewer(image_viewer)
         if servo is not None:
             servo.detach()
         if previous_button is not None:
