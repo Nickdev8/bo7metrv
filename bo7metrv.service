@@ -9,6 +9,8 @@ User=pi
 WorkingDirectory=/home/pi/bo7metrv
 ExecStart=/usr/bin/python3 /home/pi/bo7metrv/run.py
 Environment=PYTHONUNBUFFERED=1
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
 Restart=on-failure
 RestartSec=5
 
