@@ -8,9 +8,9 @@ from gpiozero import Button, Servo
 from image import ImageViewer, read_terminal_key
 
 
-PREVIOUS_BUTTON_PIN = 23
-NEXT_BUTTON_PIN = 24
-SERVO_PIN = 2
+PREVIOUS_BUTTON_PIN = 20
+NEXT_BUTTON_PIN = 21
+SERVO_PIN = 16
 
 READ_DELAY = 0.05
 IMAGE_RETRY_DELAY = 5
