@@ -1,5 +1,5 @@
 [Unit]
-Description=Color sensor, LEDs, servo, and image viewer
+Description=bo7metrv image and servo controller
 After=local-fs.target graphical.target
 Wants=graphical.target
 
@@ -15,15 +15,12 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 
-# Add these boot config lines to /boot/firmware/config.txt or /boot/config.txt.
-# The i2c-gpio overlay keeps the color sensor on GPIO14/GPIO15.
-dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
-#
 # The touchscreen uses SPI0 plus PENIRQ on GPIO25.
+# Add these boot config lines to /boot/firmware/config.txt or /boot/config.txt:
 # dtparam=spi=on
 # dtoverlay=ads7846,penirq=25,cs=1
 #
 # Install/update the service with:
-sudo cp color-controller.service /etc/systemd/system/color-controller.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now color-controller.service
+# sudo cp bo7metrv.service /etc/systemd/system/bo7metrv.service
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now bo7metrv.service
