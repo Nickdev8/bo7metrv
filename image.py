@@ -37,11 +37,6 @@ TERMINAL_IMAGE_FILES = {
 }
 
 
-def quit_now():
-    pygame.quit()
-    sys.exit(0)
-
-
 def load_scaled_image(image_path, screen_width, screen_height):
     image_file = BASE_DIR / image_path
 
@@ -80,71 +75,85 @@ def load_image_for_screen(image_path, screen_width, screen_height):
     return load_scaled_image(image_path, screen_width, screen_height)
 
 
+class ImageViewer:
+    def __init__(self):
+        try:
+            pygame.init()
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            pygame.display.set_caption("Image Viewer")
+            pygame.mouse.set_visible(False)
+
+            self.screen_width, self.screen_height = self.screen.get_size()
+            self.current_image = None
+            self.current_position = None
+            self.load_image("image-1.jpg")
+
+            if self.current_image is None:
+                raise RuntimeError("Could not load the default image.")
+        except Exception:
+            pygame.quit()
+            raise
+
+    def load_image(self, image_path):
+        loaded_image, loaded_position = load_image_for_screen(
+            image_path,
+            self.screen_width,
+            self.screen_height,
+        )
+
+        if loaded_image is None:
+            return
+
+        self.current_image = loaded_image
+        self.current_position = loaded_position
+
+    def update(self, terminal_key=None):
+        if terminal_key in ("q", "\x1b"):
+            return False
+
+        if terminal_key in TERMINAL_IMAGE_FILES:
+            self.load_image(TERMINAL_IMAGE_FILES[terminal_key])
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return False
+
+                if event.key in IMAGE_FILES:
+                    self.load_image(IMAGE_FILES[event.key])
+
+        self.screen.fill((0, 0, 0))
+        self.screen.blit(self.current_image, self.current_position)
+        pygame.display.flip()
+
+        return True
+
+    def close(self):
+        pygame.mouse.set_visible(True)
+        pygame.quit()
+
+
 def main():
     original_terminal_settings = None
     if sys.stdin.isatty():
         original_terminal_settings = termios.tcgetattr(sys.stdin)
         tty.setcbreak(sys.stdin)
 
-    pygame.init()
+    viewer = None
+    clock = pygame.time.Clock()
 
     try:
-        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        pygame.display.set_caption("Image Viewer")
-        pygame.mouse.set_visible(False)
-
-        screen_width, screen_height = screen.get_size()
-
-        current_image, current_position = load_image_for_screen(
-            "image-1.jpg",
-            screen_width,
-            screen_height
-        )
-
-        if current_image is None:
-            quit_now()
+        viewer = ImageViewer()
 
         print("Press 1-4 in this terminal to change images. Press q to quit.")
-        clock = pygame.time.Clock()
 
         while True:
             terminal_key = read_terminal_key()
-            if terminal_key in ("q", "\x1b"):
-                quit_now()
-
-            if terminal_key in TERMINAL_IMAGE_FILES:
-                loaded_image, loaded_position = load_image_for_screen(
-                    TERMINAL_IMAGE_FILES[terminal_key],
-                    screen_width,
-                    screen_height
-                )
-
-                if loaded_image is not None:
-                    current_image = loaded_image
-                    current_position = loaded_position
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    quit_now()
-
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        quit_now()
-
-                    if event.key in IMAGE_FILES:
-                        loaded_image, loaded_position = load_image_for_screen(
-                            IMAGE_FILES[event.key],
-                            screen_width,
-                            screen_height
-                        )
-
-                        if loaded_image is not None:
-                            current_image = loaded_image
-                            current_position = loaded_position
-
-            screen.fill((0, 0, 0))
-            screen.blit(current_image, current_position)
-            pygame.display.flip()
+            if not viewer.update(terminal_key):
+                break
 
             clock.tick(60)
 
@@ -154,8 +163,8 @@ def main():
     finally:
         if original_terminal_settings is not None:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
-        pygame.mouse.set_visible(True)
-        pygame.quit()
+        if viewer is not None:
+            viewer.close()
 
 
 if __name__ == "__main__":

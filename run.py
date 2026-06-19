@@ -1,8 +1,13 @@
+import sys
+import termios
 import time
+import tty
 
 import adafruit_tcs34725
 from adafruit_extended_bus import ExtendedI2C
 from gpiozero import Button, LED, Servo
+
+from image import ImageViewer, read_terminal_key
 
 
 # dtoverlay=i2c-gpio,bus=3,i2c_gpio_sda=14,i2c_gpio_scl=15
@@ -45,6 +50,7 @@ CALIBRATION_COLORS = [
 MAX_COLOR_DISTANCE = 100
 MINIMUM_BOOSTED_BRIGHTNESS = 80
 READ_DELAY = 0.1
+IMAGE_RETRY_DELAY = 5
 
 
 i2c = ExtendedI2C(I2C_BUS)
@@ -211,11 +217,27 @@ def update_servo():
     last_servo_move = now
 
 
+def start_image_viewer():
+    try:
+        return ImageViewer()
+    except Exception as error:
+        print(f"\nImage viewer not ready: {error}")
+        return None
+
+
 toggle_servo_button.when_pressed = toggle_servo
 toggle_leds_button.when_pressed = toggle_leds
 sensor_led.on()
 servo.min()
 validate_calibration_colors()
+
+original_terminal_settings = None
+if sys.stdin.isatty():
+    original_terminal_settings = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin)
+
+image_viewer = start_image_viewer()
+next_image_retry = time.monotonic() + IMAGE_RETRY_DELAY
 
 print("Color sensor, LEDs, and servo started.")
 print("LED mapping:")
@@ -225,10 +247,21 @@ print("GPIO 23 toggles the servo.")
 print("GPIO 24 toggles the sensor LED and color LEDs.")
 print("Press Ctrl+C to stop the program.")
 print("Servo on GPIO 2 changes position every 2 seconds.")
+print("Press 1-4 in this terminal to change images. Press q to quit.")
 
 try:
     while running:
         update_servo()
+
+        terminal_key = read_terminal_key()
+        if image_viewer is None:
+            now = time.monotonic()
+            if now >= next_image_retry:
+                image_viewer = start_image_viewer()
+                next_image_retry = now + IMAGE_RETRY_DELAY
+        elif not image_viewer.update(terminal_key):
+            running = False
+            break
 
         raw_red, raw_green, raw_blue = sensor.color_rgb_bytes
         red, green, blue = brighten_rgb(raw_red, raw_green, raw_blue)
@@ -251,6 +284,10 @@ except KeyboardInterrupt:
     pass
 
 finally:
+    if original_terminal_settings is not None:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
+    if image_viewer is not None:
+        image_viewer.close()
     sensor_led.off()
     show_color(None)
     servo.detach()
