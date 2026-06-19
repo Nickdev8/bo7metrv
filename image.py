@@ -91,6 +91,7 @@ def main():
     try:
         screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("Image Viewer")
+        pygame.mouse.set_visible(False)
 
         screen_width, screen_height = screen.get_size()
 
@@ -153,6 +154,7 @@ def main():
     finally:
         if original_terminal_settings is not None:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, original_terminal_settings)
+        pygame.mouse.set_visible(True)
         pygame.quit()
 
 
