@@ -1,6 +1,22 @@
-import pygame
+import os
 import sys
 from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+# Use the local HDMI display even when launched from an SSH shell.
+os.environ["DISPLAY"] = os.environ.get("IMAGE_DISPLAY", ":0")
+os.environ["SDL_VIDEO_FULLSCREEN_DISPLAY"] = os.environ.get(
+    "IMAGE_FULLSCREEN_DISPLAY",
+    "0",
+)
+
+xauthority_file = Path.home() / ".Xauthority"
+if "XAUTHORITY" not in os.environ and xauthority_file.exists():
+    os.environ["XAUTHORITY"] = str(xauthority_file)
+
+import pygame
 
 
 IMAGE_FILES = {
@@ -17,7 +33,7 @@ def quit_now():
 
 
 def load_scaled_image(image_path, screen_width, screen_height):
-    image_file = Path(image_path)
+    image_file = BASE_DIR / image_path
 
     if not image_file.exists():
         print(f"Image not found: {image_file}")
