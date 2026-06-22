@@ -24,13 +24,23 @@ SERVO_SETTLE_TIME = 0.7
 SERVO_MIN_PULSE_WIDTH = 0.4 / 1000
 SERVO_MAX_PULSE_WIDTH = 2.6 / 1000
 SERVO_FRAME_WIDTH = 20 / 1000
+SERVO_MIN_ANGLE = -80
+SERVO_MAX_ANGLE = 80
+
+IMAGE_FILES = [
+    "1.jpeg",
+    "2.jpeg",
+    "3.jpeg",
+    "4.jpeg",
+]
 
 IMAGE_STEPS = [
-    ("image-1.jpg", -80),
-    ("furkan-test.jpg", -40),
-    ("furkan-test.jpg", 0),
-    ("furkan-test.jpg", 40),
-    ("furkan-test.jpg", 80),
+    (
+        image_file,
+        SERVO_MIN_ANGLE
+        + ((SERVO_MAX_ANGLE - SERVO_MIN_ANGLE) / (len(IMAGE_FILES) - 1)) * index,
+    )
+    for index, image_file in enumerate(IMAGE_FILES)
 ]
 
 
@@ -114,7 +124,7 @@ def set_step(step, image_viewer, servo):
 
     print(
         f"Image {current_step + 1}/{len(IMAGE_STEPS)}: {image_file} "
-        f"| servo {degrees:+d} degrees",
+        f"| servo {degrees:+.1f} degrees",
         flush=True,
     )
 

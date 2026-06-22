@@ -23,17 +23,17 @@ import pygame
 
 
 IMAGE_FILES = {
-    pygame.K_1: "image-1.jpg",
-    pygame.K_2: "furkan-test.jpg",
-    pygame.K_3: "image-3.jpg",
-    pygame.K_4: "image-4.jpg",
+    pygame.K_1: "1.jpeg",
+    pygame.K_2: "2.jpeg",
+    pygame.K_3: "3.jpeg",
+    pygame.K_4: "4.jpeg",
 }
 
 TERMINAL_IMAGE_FILES = {
-    "1": "image-1.jpg",
-    "2": "furkan-test.jpg",
-    "3": "image-3.jpg",
-    "4": "image-4.jpg",
+    "1": "1.jpeg",
+    "2": "2.jpeg",
+    "3": "3.jpeg",
+    "4": "4.jpeg",
 }
 
 
@@ -86,7 +86,7 @@ class ImageViewer:
             self.screen_width, self.screen_height = self.screen.get_size()
             self.current_image = None
             self.current_position = None
-            self.load_image("image-1.jpg")
+            self.load_image("1.jpeg")
 
             if self.current_image is None:
                 raise RuntimeError("Could not load the default image.")
